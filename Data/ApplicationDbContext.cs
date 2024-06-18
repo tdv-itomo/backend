@@ -11,6 +11,7 @@ namespace VicemAPI.Data
             : base(options)
         {
         }
+        public DbSet<Employee> Employee { get; set; } = default!;
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
