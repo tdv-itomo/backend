@@ -44,7 +44,7 @@ namespace VicemAPI.Controllers
 
                 if (result.Succeeded)
                 {
-                    return Ok(new { Message = "Login successful" });
+                    return Ok(model.Email);
                 }
 
                 return Unauthorized();
