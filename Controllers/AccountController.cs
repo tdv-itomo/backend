@@ -52,8 +52,8 @@ namespace VicemAPI.Controllers
                 if (result.Succeeded)
                 {
                     var user = await _userManager.FindByNameAsync(model.Email);
-                    var token = GenerateJsonWebToken(user);
-                    return Ok(new { token });
+                    var token = await GenerateJsonWebToken(user);
+                    return Ok(new { token = token, userName = user.UserName });
                 }
 
                 return Unauthorized();
@@ -67,7 +67,7 @@ namespace VicemAPI.Controllers
             await _signInManager.SignOutAsync();
             return Ok(new { Message = "Logout successful" });
         }
-        private string GenerateJsonWebToken(ApplicationUser user)
+        private async Task<string> GenerateJsonWebToken(ApplicationUser user)
         {
             var claims = new[]
             {
@@ -81,6 +81,5 @@ namespace VicemAPI.Controllers
             expires: DateTime.Now.AddMinutes(30), signingCredentials: creds);
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-
     }
 }
