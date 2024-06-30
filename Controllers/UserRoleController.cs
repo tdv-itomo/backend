@@ -21,6 +21,7 @@ namespace VicemAPI.Controllers
         }
 
         [HttpGet("GetRolesForUser/{userId}")]
+        [Authorize(Policy = nameof(SystemPermissions.GetRoleForUser))]
         public async Task<IActionResult> GetRolesForUser(string userId)
         {
             try
@@ -41,6 +42,7 @@ namespace VicemAPI.Controllers
         }
 
         [HttpPost("AddRolesToUser")]
+        [Authorize(Policy = nameof(SystemPermissions.AssignRoleToUser))]
         public async Task<IActionResult> AddRolesToUser([FromBody] AddRolesToUserVM model)
         {
             if (model == null || string.IsNullOrEmpty(model.UserId))

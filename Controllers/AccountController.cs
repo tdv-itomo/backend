@@ -7,23 +7,26 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using VicemAPI.Models.Entities;
+using VicemAPI.Models.Process;
 using VicemAPI.Models.ViewModels;
 namespace VicemAPI.Controllers
 {
-    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class AccountController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
-        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration configuration)
+        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration configuration, RoleManager<IdentityRole> roleManager)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
+            _roleManager = roleManager;
         }
+        [Authorize(Policy = nameof(SystemPermissions.GetAllUser))]
         [HttpGet("get-all-user")]
         public async Task<IActionResult> GetUsers()
         {
@@ -37,6 +40,7 @@ namespace VicemAPI.Controllers
             return Ok(users);
         }
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<IActionResult> Register([FromBody] RegisterVM model)
         {
             if (ModelState.IsValid)
@@ -91,6 +95,11 @@ namespace VicemAPI.Controllers
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
             claims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
+            foreach (var role in userRoles)
+            {
+                var roleClaims = await _roleManager.GetClaimsAsync(await _roleManager.FindByNameAsync(role));
+                claims.AddRange(roleClaims.Where(c => c.Type == "Permission"));
+            }
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(

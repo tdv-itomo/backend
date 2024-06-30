@@ -18,6 +18,7 @@ namespace VicemAPI.Controllers
         }
 
         [HttpPost("{roleId}/permissions")]
+        [Authorize(Policy = nameof(SystemPermissions.AssignPermissionToRole))]
         public async Task<IActionResult> AddPermissionsToRole(string roleId, [FromBody] List<SystemPermissions> permissions)
         {
             var role = await _roleManager.FindByIdAsync(roleId);
@@ -57,6 +58,7 @@ namespace VicemAPI.Controllers
         }
 
         [HttpGet("{roleId}/permissions")]
+        [Authorize(Policy = nameof(SystemPermissions.GetPermissionsForRole))]
         public async Task<IActionResult> GetPermissionsForRole(string roleId)
         {
             var role = await _roleManager.FindByIdAsync(roleId);

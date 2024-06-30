@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VicemAPI.Data;
 using VicemAPI.Models.Entities;
+using VicemAPI.Models.Process;
 
 namespace VicemAPI.Controllers
 {
@@ -20,6 +21,7 @@ namespace VicemAPI.Controllers
 
         // GET: api/Employee
         [HttpGet]
+        [Authorize(Policy = nameof(SystemPermissions.GetAllEmployee))]
         public async Task<ActionResult<IEnumerable<Employee>>> GetEmployee()
         {
             return await _context.Employee.ToListAsync();
@@ -27,6 +29,7 @@ namespace VicemAPI.Controllers
 
         // GET: api/Employee/5
         [HttpGet("{id}")]
+        [Authorize(Policy = nameof(SystemPermissions.GetEmployeeById))]
         public async Task<ActionResult<Employee>> GetEmployee(int id)
         {
             var employee = await _context.Employee.FindAsync(id);
@@ -42,6 +45,7 @@ namespace VicemAPI.Controllers
         // PUT: api/Employee/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
+        [Authorize(Policy = nameof(SystemPermissions.EditEmployee))]
         public async Task<IActionResult> PutEmployee(int id, Employee employee)
         {
             if (id != employee.EmployeeId)
@@ -73,6 +77,7 @@ namespace VicemAPI.Controllers
         // POST: api/Employee
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
+        [Authorize(Policy = nameof(SystemPermissions.CreateEmployee))]
         public async Task<ActionResult<Employee>> PostEmployee(Employee employee)
         {
             _context.Employee.Add(employee);
@@ -83,6 +88,7 @@ namespace VicemAPI.Controllers
 
         // DELETE: api/Employee/5
         [HttpDelete("{id}")]
+        [Authorize(Policy = nameof(SystemPermissions.DeleteEmployee))]
         public async Task<IActionResult> DeleteEmployee(int id)
         {
             var employee = await _context.Employee.FindAsync(id);
