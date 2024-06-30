@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using VicemAPI.Models.Entities;
 using VicemAPI.Models.ViewModels;
@@ -21,6 +22,18 @@ namespace VicemAPI.Controllers
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
+        }
+        [HttpGet("get-all-user")]
+        public async Task<IActionResult> GetUsers()
+        {
+            var users = await _userManager.Users.Select(user => new
+            {
+                user.Id,
+                user.Email,
+                Roles = _userManager.GetRolesAsync(user).Result
+            }).ToListAsync();
+
+            return Ok(users);
         }
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterVM model)
