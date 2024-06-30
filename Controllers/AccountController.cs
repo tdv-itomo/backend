@@ -10,6 +10,7 @@ using VicemAPI.Models.Entities;
 using VicemAPI.Models.ViewModels;
 namespace VicemAPI.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class AccountController : ControllerBase
@@ -55,6 +56,7 @@ namespace VicemAPI.Controllers
             return BadRequest(ModelState);
         }
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginVM model)
         {
             if (ModelState.IsValid)
@@ -82,11 +84,13 @@ namespace VicemAPI.Controllers
         }
         private async Task<string> GenerateJsonWebToken(ApplicationUser user)
         {
-            var claims = new[]
+            var userRoles = await _userManager.GetRolesAsync(user);
+            var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
+            claims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(

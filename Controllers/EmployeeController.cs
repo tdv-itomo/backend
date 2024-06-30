@@ -6,7 +6,7 @@ using VicemAPI.Models.Entities;
 
 namespace VicemAPI.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "Administrator")]
     [Route("api/[controller]")]
     [ApiController]
     public class EmployeeController : ControllerBase
