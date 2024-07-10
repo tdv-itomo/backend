@@ -1,11 +1,13 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using VicemAPI.Data;
 using VicemAPI.Models.Entities;
 using VicemAPI.Models.Process;
 using VicemAPI.Models.ViewModels;
@@ -19,12 +21,14 @@ namespace VicemAPI.Controllers
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
-        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration configuration, RoleManager<IdentityRole> roleManager)
+        private ApplicationDbContext _context;
+        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration configuration, RoleManager<IdentityRole> roleManager, ApplicationDbContext context)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
             _roleManager = roleManager;
+            _context = context;
         }
         [Authorize(Policy = nameof(SystemPermissions.GetAllUser))]
         [HttpGet("get-all-user")]
@@ -72,7 +76,9 @@ namespace VicemAPI.Controllers
                 {
                     var user = await _userManager.FindByNameAsync(model.Email);
                     var token = await GenerateJsonWebToken(user);
-                    return Ok(new { token = token, userName = user.UserName });
+                    // return Ok(new { token = token, userName = user.UserName });
+                    var refreshToken = await GenerateRefreshToken(user.Id);
+                    return Ok(new { token = token, refreshToken = refreshToken.Token, userName = user.UserName });
                 }
 
                 return Unauthorized();
@@ -104,8 +110,55 @@ namespace VicemAPI.Controllers
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"], audience: _configuration["Jwt:Audience"], claims: claims,
-            expires: DateTime.Now.AddMinutes(30), signingCredentials: creds);
+            expires: DateTime.Now.AddSeconds(40), signingCredentials: creds);
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+        [HttpPost("refresh-token")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RefreshToken([FromBody] TokenRequest model)
+        {
+            if (model is null)
+            {
+                return BadRequest("Invalid client request");
+            }
+
+            var user = await _userManager.Users.Include(u => u.RefreshTokens)
+                                               .FirstOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == model.RefreshToken));
+
+            if (user is null || user.RefreshTokens.All(t => t.Token != model.RefreshToken || t.IsExpired || t.IsRevoked))
+            {
+                return Unauthorized();
+            }
+
+            var refreshToken = user.RefreshTokens.First(t => t.Token == model.RefreshToken);
+            if (!refreshToken.IsActive)
+            {
+                return Unauthorized();
+            }
+
+            var newJwtToken = await GenerateJsonWebToken(user);
+            var newRefreshToken = await GenerateRefreshToken(user.Id);
+
+            refreshToken.Revoked = DateTime.UtcNow;
+            _context.RefreshTokens.Update(refreshToken);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { token = newJwtToken, refreshToken = newRefreshToken.Token });
+        }
+
+        private async Task<RefreshToken> GenerateRefreshToken(string userId)
+        {
+            var refreshToken = new RefreshToken
+            {
+                Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+                Expires = DateTime.UtcNow.AddDays(7),
+                Created = DateTime.UtcNow,
+                UserId = userId
+            };
+            _context.RefreshTokens.Add(refreshToken);
+            await _context.SaveChangesAsync();
+            return refreshToken;
+        }
+
     }
 }
