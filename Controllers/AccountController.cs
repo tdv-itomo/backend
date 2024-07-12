@@ -76,9 +76,17 @@ namespace VicemAPI.Controllers
                 {
                     var user = await _userManager.FindByNameAsync(model.Email);
                     var token = await GenerateJsonWebToken(user);
-                    // return Ok(new { token = token, userName = user.UserName });
                     var refreshToken = await GenerateRefreshToken(user.Id);
-                    return Ok(new { token = token, refreshToken = refreshToken.Token, userName = user.UserName });
+                    var cookieOptions = new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Strict,
+                        Expires = refreshToken.Expires
+                    };
+                    Response.Cookies.Append("refreshToken", refreshToken.Token, cookieOptions);
+
+                    return Ok(new { token = token, userName = user.UserName });
                 }
 
                 return Unauthorized();
@@ -110,27 +118,27 @@ namespace VicemAPI.Controllers
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"], audience: _configuration["Jwt:Audience"], claims: claims,
-            expires: DateTime.Now.AddSeconds(40), signingCredentials: creds);
+            expires: DateTime.Now.AddSeconds(20), signingCredentials: creds);
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
         [HttpPost("refresh-token")]
         [AllowAnonymous]
-        public async Task<IActionResult> RefreshToken([FromBody] TokenRequest model)
+        public async Task<IActionResult> RefreshToken()
         {
-            if (model is null)
+            if (!Request.Cookies.TryGetValue("refreshToken", out var refreshTokenValue))
             {
                 return BadRequest("Invalid client request");
             }
 
             var user = await _userManager.Users.Include(u => u.RefreshTokens)
-                                               .FirstOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == model.RefreshToken));
+                                               .FirstOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == refreshTokenValue));
 
-            if (user is null || user.RefreshTokens.All(t => t.Token != model.RefreshToken || t.IsExpired || t.IsRevoked))
+            if (user == null || user.RefreshTokens.All(t => t.Token != refreshTokenValue || t.IsExpired || t.IsRevoked))
             {
                 return Unauthorized();
             }
 
-            var refreshToken = user.RefreshTokens.First(t => t.Token == model.RefreshToken);
+            var refreshToken = user.RefreshTokens.First(t => t.Token == refreshTokenValue);
             if (!refreshToken.IsActive)
             {
                 return Unauthorized();
@@ -143,15 +151,22 @@ namespace VicemAPI.Controllers
             _context.RefreshTokens.Update(refreshToken);
             await _context.SaveChangesAsync();
 
-            return Ok(new { token = newJwtToken, refreshToken = newRefreshToken.Token });
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = newRefreshToken.Expires
+            };
+            Response.Cookies.Append("refreshToken", newRefreshToken.Token, cookieOptions);
+            return Ok(new { token = newJwtToken });
         }
-
         private async Task<RefreshToken> GenerateRefreshToken(string userId)
         {
             var refreshToken = new RefreshToken
             {
                 Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-                Expires = DateTime.UtcNow.AddDays(7),
+                Expires = DateTime.UtcNow.AddMinutes(2),
                 Created = DateTime.UtcNow,
                 UserId = userId
             };
@@ -159,6 +174,5 @@ namespace VicemAPI.Controllers
             await _context.SaveChangesAsync();
             return refreshToken;
         }
-
     }
 }
