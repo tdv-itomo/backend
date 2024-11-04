@@ -12,6 +12,7 @@ namespace VicemAPI.Data
         {
         }
         public DbSet<Employee> Employee { get; set; } = default!;
+        public DbSet<Department> Department { get; set; } = default!;
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         protected override void OnModelCreating(ModelBuilder builder)
         {
