@@ -13,7 +13,7 @@ using VicemAPI.Models.Process;
 using VicemAPI.Models.ViewModels;
 namespace VicemAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/account")]
     [ApiController]
     public class AccountController : ControllerBase
     {
@@ -22,6 +22,7 @@ namespace VicemAPI.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
         private ApplicationDbContext _context;
+
         public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration configuration, RoleManager<IdentityRole> roleManager, ApplicationDbContext context)
         {
             _userManager = userManager;
@@ -30,6 +31,7 @@ namespace VicemAPI.Controllers
             _roleManager = roleManager;
             _context = context;
         }
+
         [Authorize(Policy = nameof(SystemPermissions.GetAllUser))]
         [HttpGet("get-all-user")]
         public async Task<IActionResult> GetUsers()
@@ -38,11 +40,12 @@ namespace VicemAPI.Controllers
             {
                 user.Id,
                 user.Email,
-                Roles = _userManager.GetRolesAsync(user).Result
+                Roles = _userManager.GetRolesAsync(user).Result,
             }).ToListAsync();
 
             return Ok(users);
         }
+
         [HttpPost("register")]
         [AllowAnonymous]
         public async Task<IActionResult> Register([FromBody] RegisterVM model)
@@ -63,6 +66,7 @@ namespace VicemAPI.Controllers
 
             return BadRequest(ModelState);
         }
+
         [HttpPost("login")]
         [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginVM model)
@@ -82,17 +86,19 @@ namespace VicemAPI.Controllers
                         HttpOnly = true,
                         Secure = true,
                         SameSite = SameSiteMode.Strict,
-                        Expires = refreshToken.Expires
+                        Expires = refreshToken.Expires,
                     };
                     Response.Cookies.Append("refreshToken", refreshToken.Token, cookieOptions);
 
-                    return Ok(new { token = token, userName = user.UserName });
+                    return Ok(new { token = token, name = user.FullName, userId = user.Id, email = model.Email });
                 }
 
-                return Unauthorized();
+                return Unauthorized(new { Message = "Email hoặc mật khẩu không chính xác" });
             }
+
             return BadRequest(ModelState);
         }
+
         [Authorize]
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
@@ -100,13 +106,14 @@ namespace VicemAPI.Controllers
             await _signInManager.SignOutAsync();
             return Ok(new { Message = "Logout successful" });
         }
+
         private async Task<string> GenerateJsonWebToken(ApplicationUser user)
         {
             var userRoles = await _userManager.GetRolesAsync(user);
             var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             };
             claims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
             foreach (var role in userRoles)
@@ -118,9 +125,10 @@ namespace VicemAPI.Controllers
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"], audience: _configuration["Jwt:Audience"], claims: claims,
-            expires: DateTime.Now.AddSeconds(20), signingCredentials: creds);
+            expires: DateTime.Now.AddMinutes(20), signingCredentials: creds);
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
         [HttpPost("refresh-token")]
         [AllowAnonymous]
         public async Task<IActionResult> RefreshToken()
@@ -156,11 +164,12 @@ namespace VicemAPI.Controllers
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
-                Expires = newRefreshToken.Expires
+                Expires = newRefreshToken.Expires,
             };
             Response.Cookies.Append("refreshToken", newRefreshToken.Token, cookieOptions);
             return Ok(new { token = newJwtToken });
         }
+
         private async Task<RefreshToken> GenerateRefreshToken(string userId)
         {
             var refreshToken = new RefreshToken
@@ -168,7 +177,7 @@ namespace VicemAPI.Controllers
                 Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
                 Expires = DateTime.UtcNow.AddMinutes(2),
                 Created = DateTime.UtcNow,
-                UserId = userId
+                UserId = userId,
             };
             _context.RefreshTokens.Add(refreshToken);
             await _context.SaveChangesAsync();

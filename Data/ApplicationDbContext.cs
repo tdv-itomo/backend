@@ -11,9 +11,13 @@ namespace VicemAPI.Data
             : base(options)
         {
         }
+
         public DbSet<Employee> Employee { get; set; } = default!;
-        public DbSet<Department> Department { get; set; } = default!;
+
+        public DbSet<Department> Department { get; set; }
+
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -26,5 +30,15 @@ namespace VicemAPI.Data
             builder.Entity<IdentityRoleClaim<string>>().ToTable("RoleClaims");
             builder.Entity<IdentityUserClaim<string>>().ToTable("UserClaims");
         }
+
+        public DbSet<Advisor> Advisor { get; set; } = default!;
+
+        public DbSet<Student> Student { get; set; } = default!;
+
+        public DbSet<Company> Company { get; set; } = default!;
+
+        public DbSet<Council> Council { get; set; } = default!;
+
+        public DbSet<Topic> Topic { get; set; } = default!;
     }
 }
